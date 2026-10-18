@@ -27,7 +27,8 @@ const KATEGORIJOS = {
   vaiskrumis: { pavadinimas: "Vaiskrūmiai",       ikona: "🫐", spalva: "#9333ea" },
   vanduo:     { pavadinimas: "Vandens telkiniai", ikona: "💧", spalva: "#0284c7" },
   pastatas:   { pavadinimas: "Pastatai",          ikona: "🏠", spalva: "#d97706" },
-  ukis:       { pavadinimas: "Ūkis ir gėrybės",   ikona: "🐝", spalva: "#eab308" }
+  ukis:       { pavadinimas: "Ūkis ir gėrybės",   ikona: "🐝", spalva: "#eab308" },
+  trauka: { pavadinimas: "Traukos objektai",  ikona: "⭐", spalva: "#F3F494" }
 };
 
 // ==========================================
@@ -68,7 +69,7 @@ const OBJEKTAI = [
     coords: [54.873991, 23.781251],
     title: "Bičių aviliai",
     category: "ukis",
-    coverPhoto: "https://images.unsplash.com/photo-1587049352847-4a222e784d38?auto=format&fit=crop&w=800&q=80",
+    coverPhoto: "https://external-content.duckduckgo.com/iu/?u=https%3A%2F%2Fcdn.pixabay.com%2Fphoto%2F2023%2F09%2F22%2F00%2F14%2Fbees-8267791_1280.png&f=1&nofb=1&ipt=3d267b50b4e9bda25fe3134d95e5078dddfdcd91672f393e6595c8c749a6f849&ipo=images",
     year: null,
     desc: "Bakfasto ir kitos bitės. Nelabai prisimenu :(. Neša skanų medutį",
     audio: null,
@@ -98,5 +99,41 @@ const OBJEKTAI = [
     audio: null,
     gallery: null,
     wiki: null
-  }
+  },
+  {
+	  id: "namas",
+	  coords: [54.874433, 23.782777],
+	  title: "Namas",
+	  category: "pastatas",
+	  coverPhoto: "https://raw.githubusercontent.com/iLoveCepelinai/luko-mack-ukis/refs/heads/main/foto/senelio_namas_main.png",
+	  year: null,
+	  desc: "Luko antri namai, jaukūs ir šilti.",
+	  audio: null,
+	  gallery: null,
+	  wiki: null
+	},
+	{
+	  id: "lukakalnis",
+	  coords: [54.874131, 23.781976],
+	  title: "Lukakalnis",
+	  category: "trauka",
+	  coverPhoto: "foto/nuotrauka.jpg",
+	  year: null,
+	  desc: "Vienas įspūdingiausių kalnų apylinkėse. Dažnai galima girdėti Maironio ir J. Naujelio Lietuva brangi.",
+	  audio: null,
+	  gallery: null,
+	  wiki: null
+	},
+	{
+	  id: "pasiure",
+	  coords: [54.874638, 23.781961],
+	  title: "Pašiūrė",
+	  category: "pastatas",
+	  coverPhoto: "https://external-content.duckduckgo.com/iu/?u=https%3A%2F%2Fwww.yetrac.com%2Fwp-content%2Fuploads%2F2023%2F10%2FIseki-Co.-Ltd.-Japanese-Agricultural-Machinery-Manufacturing-Excellence-Since-1926-2048x1366.jpg&f=1&nofb=1&ipt=cfe4a8b389cf7d9a8c995d9fdf577d215bb4eeee81886fb3d2d664cbed0d90dd&ipo=images",
+	  year: null,
+	  desc: "Pašiūrė ūkio reikmėms.",
+	  audio: null,
+	  gallery: null,
+	  wiki: null
+	},
 ];
