@@ -1,0 +1,1 @@
+Čia talpinamos foto su objektais. Pavadinimų taisyklės dar derinamos.

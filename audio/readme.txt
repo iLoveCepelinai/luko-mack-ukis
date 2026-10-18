@@ -1,0 +1,1 @@
+Čia talpinami garso failai skirti senelio pasakojimams apie objektus.

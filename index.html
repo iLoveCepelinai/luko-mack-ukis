@@ -1,0 +1,512 @@
+<!DOCTYPE html>
+<html lang="lt">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Luko Mack ūkis</title>
+
+  <!-- Tailwind CSS dizainui -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- Leaflet.js žemėlapiui -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <style>
+    body, html { margin: 0; padding: 0; height: 100%; overflow: hidden; }
+    #map { height: 100vh; width: 100vw; z-index: 1; }
+
+    /* Žymeklio (burbuliuko) stilius žemėlapyje */
+    .custom-pin {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 38px;
+      height: 38px;
+      border-radius: 50%;
+      border: 3px solid white;
+      box-shadow: 0 3px 8px rgba(0,0,0,0.4);
+      font-size: 18px;
+      transition: transform 0.2s ease;
+    }
+    .custom-pin:hover, .custom-pin.active-pin {
+      transform: scale(1.25);
+      z-index: 1000 !important;
+      border-color: #fde047;
+    }
+
+    /* Paslėpti scrollbar'ą filtrų juostoje */
+    .no-scrollbar::-webkit-scrollbar { display: none; }
+    .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+  </style>
+</head>
+<body class="bg-gray-900 font-sans">
+
+  <!-- VIRŠUTINĖ VALDYMO JUOSTA (Pavadinimas, Paieška ir Filtrai) -->
+  <div class="fixed top-3 left-3 right-16 z-[500] flex flex-col gap-2 pointer-events-none max-w-5xl">
+    
+    <!-- Pavadinimo ir paieškos eilutė -->
+    <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 pointer-events-auto max-w-2xl">
+      <!-- Ūkio pavadinimas -->
+      <div id="plotTitleBadge" class="bg-gray-900/95 text-white backdrop-blur shadow-lg rounded-xl px-3.5 py-2 text-sm font-bold flex items-center gap-2 shrink-0 border border-gray-700">
+        <span>🌿</span>
+        <span id="plotTitleText">Luko Mack ūkis</span>
+      </div>
+
+      <!-- Paieška -->
+      <div class="bg-white/95 backdrop-blur shadow-lg rounded-xl px-3 py-2 flex items-center gap-2 flex-1 border border-gray-200">
+        <span class="text-gray-400">🔍</span>
+        <input 
+          id="searchInput" 
+          type="text" 
+          placeholder="Ieškoti objekto (pvz. ąžuolas, prūdas)..." 
+          class="w-full bg-transparent text-sm text-gray-800 focus:outline-none"
+        />
+        <button id="clearSearch" class="hidden text-gray-400 hover:text-gray-600 text-xs font-bold px-1">✕</button>
+      </div>
+    </div>
+
+    <!-- Kategorijų filtrai -->
+    <div id="categoryFilters" class="flex flex-nowrap sm:flex-wrap gap-1.5 overflow-x-auto no-scrollbar pointer-events-auto pb-1 pr-2">
+      <!-- Užpildoma automatiškai iš data.js -->
+    </div>
+  </div>
+
+  <!-- ŽEMĖLAPIS -->
+  <div id="map"></div>
+
+  <!-- APATINIAI PAGALBINIAI MYGTUKAI (Kairėje) -->
+  <div class="fixed bottom-5 left-3 z-[500] flex flex-col gap-2">
+    <button onclick="centerToPlot()" class="bg-white/95 hover:bg-white text-gray-800 shadow-lg rounded-xl px-3 py-2 text-xs font-semibold flex items-center gap-1.5 border border-gray-200 transition">
+      <span>🏡</span> Ūkio centras
+    </button>
+
+    <button onclick="locateUser()" class="bg-white/95 hover:bg-white text-gray-800 shadow-lg rounded-xl px-3 py-2 text-xs font-semibold flex items-center gap-1.5 border border-gray-200 transition">
+      <span>📍</span> Kur aš esu
+    </button>
+
+    <button id="coordModeBtn" onclick="toggleCoordMode()" class="bg-gray-900/90 hover:bg-gray-800 text-white shadow-lg rounded-xl px-3 py-2 text-xs font-semibold flex items-center gap-1.5 border border-gray-700 transition">
+      <span>🎯</span> Žymėti tašką
+    </button>
+  </div>
+
+  <!-- KOORDINAČIŲ KOPIJAVIMO MODALAS (Kai įjungtas 🎯 režimas) -->
+  <div id="coordModal" class="hidden fixed bottom-20 left-3 right-3 md:right-auto md:w-96 z-[600] bg-gray-900 text-white p-4 rounded-2xl shadow-2xl border border-gray-700">
+    <div class="flex justify-between items-center mb-2">
+      <span class="text-xs font-bold uppercase tracking-wider text-emerald-400">Naujo taško šablonas</span>
+      <button onclick="closeCoordModal()" class="text-gray-400 hover:text-white text-sm">✕</button>
+    </div>
+    <p class="text-xs text-gray-300 mb-2">Nukopijuok ir įklijuok į <code class="text-amber-300">data.js</code> failą:</p>
+    <pre id="coordSnippet" class="bg-black/60 p-2.5 rounded-lg text-[11px] font-mono text-emerald-300 overflow-x-auto mb-3"></pre>
+    <button onclick="copySnippet()" id="copySnippetBtn" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-semibold py-2 rounded-lg text-xs transition">
+      📋 Kopijuoti šabloną
+    </button>
+  </div>
+
+  <!-- OBJEKTO INFORMACIJOS KORTELĖ -->
+  <div id="infoDrawer" class="fixed inset-x-0 bottom-0 md:inset-y-4 md:right-4 md:left-auto md:w-[420px] z-[700] transform translate-y-full md:translate-y-0 md:translate-x-[120%] transition-transform duration-300 ease-in-out flex flex-col max-h-[85vh] md:max-h-full bg-white rounded-t-3xl md:rounded-2xl shadow-2xl overflow-hidden border border-gray-200">
+    
+    <!-- Viršelio nuotrauka -->
+    <div class="relative h-56 sm:h-64 w-full bg-gray-200 shrink-0">
+      <img id="cardCover" src="" alt="" class="w-full h-full object-cover cursor-pointer" onclick="openLightbox(this.src)" />
+      <div class="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-black/30 pointer-events-none"></div>
+      
+      <button onclick="closeCard()" class="absolute top-3 right-3 bg-black/50 hover:bg-black/75 text-white w-9 h-9 rounded-full flex items-center justify-center backdrop-blur transition">
+        ✕
+      </button>
+
+      <div class="absolute bottom-3 left-4 right-4 flex items-end justify-between gap-2 pointer-events-none">
+        <div>
+          <span id="cardCategoryBadge" class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold text-white shadow mb-1.5"></span>
+          <h2 id="cardTitle" class="text-xl font-bold text-white leading-tight drop-shadow"></h2>
+        </div>
+        <span id="cardYear" class="hidden shrink-0 bg-white/90 backdrop-blur text-gray-900 font-bold text-xs px-2.5 py-1 rounded-lg shadow"></span>
+      </div>
+    </div>
+
+    <!-- Kortelės turinys -->
+    <div class="p-4 sm:p-5 overflow-y-auto flex-1 space-y-4">
+      <p id="cardDesc" class="text-gray-700 text-sm leading-relaxed whitespace-pre-line hidden"></p>
+
+      <div id="cardAudioWrap" class="hidden bg-amber-50 border border-amber-200 rounded-xl p-3">
+        <div class="text-xs font-semibold text-amber-900 mb-1.5 flex items-center gap-1.5">
+          <span>🎙️</span> Garso įrašas / pasakojimas
+        </div>
+        <audio id="cardAudio" controls class="w-full h-9"></audio>
+      </div>
+
+      <div id="cardGalleryWrap" class="hidden">
+        <h3 class="text-xs font-bold uppercase tracking-wider text-gray-400 mb-2">Kitos nuotraukos</h3>
+        <div id="cardGallery" class="grid grid-cols-3 gap-2"></div>
+      </div>
+
+      <div id="cardWikiWrap" class="hidden pt-2 border-t border-gray-100">
+        <a id="cardWiki" href="#" target="_blank" rel="noopener noreferrer" class="block w-full bg-blue-50 hover:bg-blue-100 text-blue-700 font-semibold py-2.5 px-3 rounded-xl text-xs text-center transition">
+          📖 Skaityti Vikipedijoje ↗
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <!-- PILNO EKRANO NUOTRAUKOS PERŽIŪRA (Lightbox) -->
+  <div id="lightbox" onclick="closeLightbox()" class="hidden fixed inset-0 z-[900] bg-black/90 flex items-center justify-center p-4 cursor-zoom-out">
+    <img id="lightboxImg" src="" alt="" class="max-w-full max-h-full rounded-lg shadow-2xl object-contain" />
+  </div>
+
+  <!-- Duomenų failo įkėlimas -->
+  <script src="data.js"></script>
+
+  <!-- Pagrindinė aplikacijos logika -->
+  <script>
+    let map;
+    let markersMap = {};
+    let activeCategory = "all";
+    let searchQuery = "";
+    let coordMode = false;
+    let tempMarker = null;
+    let userLocationMarker = null;
+    let currentObjectId = null;
+
+    // 1. ŽEMĖLAPIO INICIJAVIMAS
+    function initMap() {
+      const plotName = SKLYPO_NUSTATYMAI.pavadinimas || "Luko Mack ūkis";
+      document.title = plotName;
+      document.getElementById("plotTitleText").textContent = plotName;
+
+      // 1 sluoksnis: Oficialus Maps.lt Ortofoto (Web Mercator)
+      const mapsLtOrto = L.tileLayer(
+        "https://beta.maps.lt/arcgis-maps/rest/services/Basemaps/maps_ortofoto_wmerc/MapServer/tile/{z}/{y}/{x}",
+        {
+          maxZoom: 22,
+          maxNativeZoom: 19,
+          attribution: "© HNIT-BALTIC, NŽT ORT10LT"
+        }
+      );
+
+      // 2 sluoksnis: Standartinis žemėlapis
+      const cartoStreet = L.tileLayer(
+        "https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png",
+        {
+          maxZoom: 22,
+          maxNativeZoom: 19,
+          attribution: "© OpenStreetMap / CARTO"
+        }
+      );
+
+      map = L.map("map", {
+        center: SKLYPO_NUSTATYMAI.centras,
+        zoom: SKLYPO_NUSTATYMAI.pradinisPriartinimas || 18,
+        layers: [mapsLtOrto],
+        zoomControl: false
+      });
+
+      const baseMaps = {
+        "🇱🇹 Maps.lt Ortofoto": mapsLtOrto,
+        "🗺️ Standartinis žemėlapis": cartoStreet
+      };
+      L.control.layers(baseMaps, null, { position: "topright" }).addTo(map);
+
+      if (SKLYPO_NUSTATYMAI.dronoNuotrauka && SKLYPO_NUSTATYMAI.dronoNuotrauka.aktyvuota) {
+        L.imageOverlay(
+          SKLYPO_NUSTATYMAI.dronoNuotrauka.failas,
+          SKLYPO_NUSTATYMAI.dronoNuotrauka.kampai,
+          { opacity: 1, zIndex: 10 }
+        ).addTo(map);
+      }
+
+      map.on("click", (e) => {
+        if (coordMode) {
+          showCoordinateHelper(e.latlng);
+        } else {
+          closeCard();
+        }
+      });
+
+      renderFilters();
+      renderMarkers();
+      checkUrlForQrObject();
+    }
+
+    // 2. KATEGORIJŲ FILTRŲ GENERAVIMAS
+    function renderFilters() {
+      const container = document.getElementById("categoryFilters");
+      let html = `
+        <button onclick="setCategory('all')" class="cat-btn shrink-0 px-3.5 py-1.5 rounded-xl text-xs font-bold shadow-md transition ${
+          activeCategory === "all" ? "bg-gray-900 text-white" : "bg-white/95 text-gray-700 hover:bg-white"
+        }">
+          Visi (${OBJEKTAI.length})
+        </button>
+      `;
+
+      for (const [key, cat] of Object.entries(KATEGORIJOS)) {
+        const count = OBJEKTAI.filter(o => o.category === key).length;
+        if (count === 0) continue;
+        const isActive = activeCategory === key;
+        html += `
+          <button onclick="setCategory('${key}')" class="cat-btn shrink-0 px-3.5 py-1.5 rounded-xl text-xs font-bold shadow-md flex items-center gap-1.5 transition ${
+            isActive ? "bg-gray-900 text-white" : "bg-white/95 text-gray-700 hover:bg-white"
+          }">
+            <span>${cat.ikona}</span>
+            <span>${cat.pavadinimas}</span>
+            <span class="opacity-60">(${count})</span>
+          </button>
+        `;
+      }
+      container.innerHTML = html;
+    }
+
+    function setCategory(catKey) {
+      activeCategory = catKey;
+      renderFilters();
+      renderMarkers();
+    }
+
+    // 3. TAŠKŲ ATVAIZDAVIMAS ŽEMĖLAPYJE
+    function renderMarkers() {
+      Object.values(markersMap).forEach(m => map.removeLayer(m));
+      markersMap = {};
+
+      OBJEKTAI.forEach(obj => {
+        if (!obj.coords || obj.coords.length !== 2) return;
+
+        const matchesCat = activeCategory === "all" || obj.category === activeCategory;
+        const matchesSearch = !searchQuery || 
+          (obj.title && obj.title.toLowerCase().includes(searchQuery)) ||
+          (obj.desc && obj.desc.toLowerCase().includes(searchQuery));
+
+        if (!matchesCat || !matchesSearch) return;
+
+        const cat = KATEGORIJOS[obj.category] || { ikona: "📍", spalva: "#4b5563" };
+        const isActive = currentObjectId === obj.id;
+
+        const icon = L.divIcon({
+          className: "",
+          html: `<div class="custom-pin ${isActive ? 'active-pin' : ''}" style="background-color: ${cat.spalva};" title="${obj.title}">
+                   <span>${cat.ikona}</span>
+                 </div>`,
+          iconSize: [38, 38],
+          iconAnchor: [19, 19]
+        });
+
+        const marker = L.marker(obj.coords, { icon }).addTo(map);
+        marker.on("click", (e) => {
+          L.DomEvent.stopPropagation(e);
+          if (coordMode) {
+            showCoordinateHelper(e.latlng);
+            return;
+          }
+          openObjectCard(obj.id, true);
+        });
+
+        markersMap[obj.id] = marker;
+      });
+    }
+
+    // 4. OBJEKTO KORTELĖS ATIDARYMAS IR URL PAKEITIMAS
+    function openObjectCard(id, updateUrl = true) {
+      const obj = OBJEKTAI.find(o => o.id === id);
+      if (!obj) return;
+
+      currentObjectId = obj.id;
+      const cat = KATEGORIJOS[obj.category] || { pavadinimas: "Objektas", ikona: "📍", spalva: "#4b5563" };
+
+      map.flyTo(obj.coords, Math.max(map.getZoom(), 19), { duration: 0.6 });
+      renderMarkers();
+
+      if (updateUrl) {
+        const newUrl = `${window.location.pathname}?id=${encodeURIComponent(obj.id)}`;
+        window.history.pushState({ id: obj.id }, "", newUrl);
+      }
+
+      document.getElementById("cardTitle").textContent = obj.title || "Be pavadinimo";
+      document.getElementById("cardCover").src = obj.coverPhoto || "https://via.placeholder.com/800x500?text=Nera+nuotraukos";
+      
+      const badge = document.getElementById("cardCategoryBadge");
+      badge.style.backgroundColor = cat.spalva;
+      badge.innerHTML = `<span>${cat.ikona}</span> <span>${cat.pavadinimas}</span>`;
+
+      const yearEl = document.getElementById("cardYear");
+      if (obj.year) {
+        yearEl.textContent = `${obj.year} m.`;
+        yearEl.classList.remove("hidden");
+      } else {
+        yearEl.classList.add("hidden");
+      }
+
+      const descEl = document.getElementById("cardDesc");
+      if (obj.desc) {
+        descEl.textContent = obj.desc;
+        descEl.classList.remove("hidden");
+      } else {
+        descEl.classList.add("hidden");
+      }
+
+      const audioWrap = document.getElementById("cardAudioWrap");
+      const audioPlayer = document.getElementById("cardAudio");
+      audioPlayer.pause();
+      if (obj.audio) {
+        audioPlayer.src = obj.audio;
+        audioWrap.classList.remove("hidden");
+      } else {
+        audioPlayer.src = "";
+        audioWrap.classList.add("hidden");
+      }
+
+      const galleryWrap = document.getElementById("cardGalleryWrap");
+      const galleryGrid = document.getElementById("cardGallery");
+      if (Array.isArray(obj.gallery) && obj.gallery.length > 0) {
+        galleryGrid.innerHTML = obj.gallery.map(imgUrl => `
+          <img src="${imgUrl}" onclick="openLightbox('${imgUrl}')" class="h-20 w-full object-cover rounded-lg cursor-pointer hover:opacity-85 transition border border-gray-200" />
+        `).join("");
+        galleryWrap.classList.remove("hidden");
+      } else {
+        galleryWrap.classList.add("hidden");
+      }
+
+      const wikiWrap = document.getElementById("cardWikiWrap");
+      const wikiBtn = document.getElementById("cardWiki");
+      if (obj.wiki) {
+        wikiBtn.href = obj.wiki;
+        wikiWrap.classList.remove("hidden");
+      } else {
+        wikiWrap.classList.add("hidden");
+      }
+
+      const drawer = document.getElementById("infoDrawer");
+      drawer.classList.remove("translate-y-full", "md:translate-x-[120%]");
+    }
+
+    function closeCard() {
+      currentObjectId = null;
+      const drawer = document.getElementById("infoDrawer");
+      drawer.classList.add("translate-y-full", "md:translate-x-[120%]");
+      document.getElementById("cardAudio").pause();
+      renderMarkers();
+
+      if (window.location.search.includes("id=")) {
+        window.history.pushState({}, "", window.location.pathname);
+      }
+    }
+
+    // 5. QR KODO PATIKRINIMAS UŽSIKROVUS PUSLAPIUI
+    function checkUrlForQrObject() {
+      const params = new URLSearchParams(window.location.search);
+      const id = params.get("id");
+      if (id) {
+        openObjectCard(id, false);
+      }
+    }
+
+    // 6. PAGALBINĖS FUNKCIJOS
+    function centerToPlot() {
+      map.flyTo(SKLYPO_NUSTATYMAI.centras, SKLYPO_NUSTATYMAI.pradinisPriartinimas || 18);
+    }
+
+    function locateUser() {
+      if (!navigator.geolocation) {
+        alert("Jūsų naršyklė nepalaiko GPS vietos nustatymo.");
+        return;
+      }
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          const latlng = [pos.coords.latitude, pos.coords.longitude];
+          if (userLocationMarker) map.removeLayer(userLocationMarker);
+          userLocationMarker = L.circleMarker(latlng, {
+            radius: 9,
+            fillColor: "#3b82f6",
+            color: "#ffffff",
+            weight: 3,
+            fillOpacity: 1
+          }).addTo(map).bindPopup("Jūs esate čia").openPopup();
+          map.flyTo(latlng, 19);
+        },
+        () => alert("Nepavyko gauti vietos. Patikrinkite, ar leidote naršyklei naudoti GPS.")
+      );
+    }
+
+    function toggleCoordMode() {
+      coordMode = !coordMode;
+      const btn = document.getElementById("coordModeBtn");
+      if (coordMode) {
+        btn.classList.replace("bg-gray-900/90", "bg-emerald-600");
+        btn.innerHTML = "<span>🎯</span> Paspausk ant žemėlapio...";
+        closeCard();
+      } else {
+        btn.classList.replace("bg-emerald-600", "bg-gray-900/90");
+        btn.innerHTML = "<span>🎯</span> Žymėti tašką";
+        closeCoordModal();
+      }
+    }
+
+    function showCoordinateHelper(latlng) {
+      const lat = latlng.lat.toFixed(6);
+      const lng = latlng.lng.toFixed(6);
+
+      if (tempMarker) map.removeLayer(tempMarker);
+      tempMarker = L.marker([lat, lng]).addTo(map);
+
+      const snippet = `{
+  id: "naujas-objektas-${Math.floor(Math.random() * 900 + 100)}",
+  coords: [${lat}, ${lng}],
+  title: "Objekto pavadinimas",
+  category: "medis",
+  coverPhoto: "foto/nuotrauka.jpg",
+  year: 2026,
+  desc: "Aprašymas...",
+  audio: null,
+  gallery: null,
+  wiki: null
+},`;
+
+      document.getElementById("coordSnippet").textContent = snippet;
+      document.getElementById("coordModal").classList.remove("hidden");
+    }
+
+    function closeCoordModal() {
+      document.getElementById("coordModal").classList.add("hidden");
+      if (tempMarker) map.removeLayer(tempMarker);
+    }
+
+    function copySnippet() {
+      const text = document.getElementById("coordSnippet").textContent;
+      navigator.clipboard.writeText(text).then(() => {
+        const btn = document.getElementById("copySnippetBtn");
+        btn.textContent = "✅ Nukopijuota!";
+        setTimeout(() => btn.textContent = "📋 Kopijuoti šabloną", 2000);
+      });
+    }
+
+    // 7. PAIEŠKA IR LIGHTBOX
+    document.getElementById("searchInput").addEventListener("input", (e) => {
+      searchQuery = e.target.value.trim().toLowerCase();
+      document.getElementById("clearSearch").classList.toggle("hidden", !searchQuery);
+      renderMarkers();
+    });
+
+    document.getElementById("clearSearch").addEventListener("click", () => {
+      document.getElementById("searchInput").value = "";
+      searchQuery = "";
+      document.getElementById("clearSearch").classList.add("hidden");
+      renderMarkers();
+    });
+
+    function openLightbox(src) {
+      document.getElementById("lightboxImg").src = src;
+      document.getElementById("lightbox").classList.remove("hidden");
+    }
+
+    function closeLightbox() {
+      document.getElementById("lightbox").classList.add("hidden");
+    }
+
+    window.addEventListener("popstate", () => {
+      const params = new URLSearchParams(window.location.search);
+      const id = params.get("id");
+      if (id) openObjectCard(id, false);
+      else closeCard();
+    });
+
+    window.addEventListener("DOMContentLoaded", initMap);
+  </script>
+</body>
+</html>
